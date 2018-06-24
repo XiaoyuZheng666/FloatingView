@@ -37,6 +37,9 @@ public class FloatingView extends AppCompatImageView implements IFloatingView,Vi
     private boolean hasMargin;
     private Matrix matrix;
     private float pointX, pointY;
+    private float rawPointX, rawPointY;
+    private float statusBarHeight;
+    private float navigationBarHeight;
 
     /* close bitmap */
     private Bitmap closeBitmap;
@@ -66,6 +69,15 @@ public class FloatingView extends AppCompatImageView implements IFloatingView,Vi
         this.context = context;
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         matrix = new Matrix();
+
+        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resourceId > 0) {
+            //状态栏的高度
+            //根据资源ID获取响应的尺寸值
+            statusBarHeight = getResources().getDimensionPixelSize(resourceId);
+        }
+
+        navigationBarHeight=getResources().getDimensionPixelSize(R.dimen.navigationbar_height);
         width = context.getResources().getDimensionPixelSize(R.dimen.floating_view_max_width);
         height = context.getResources().getDimensionPixelSize(R.dimen.floating_view_max_height);
     }
@@ -109,6 +121,7 @@ public class FloatingView extends AppCompatImageView implements IFloatingView,Vi
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+
         switch (event.getAction()){
             case MotionEvent.ACTION_UP:
                 if (closeBitmap != null){
@@ -120,9 +133,15 @@ public class FloatingView extends AppCompatImageView implements IFloatingView,Vi
                         }
                         release();
                         setImageDrawable(null);
-                    }else{
-                        if (clickListener != null) {
-                            clickListener.onFloatClick(this);
+                    }
+                    else
+                    {
+                        //rawPointX代表在屏幕上的位置
+                        //如果没有移动的话当前的event得到的rawPointX应该与全局的rawPointX相等的
+                        if((event.getRawX()==rawPointX)){
+                            if (clickListener != null) {
+                                clickListener.onFloatClick(this);
+                            }
                         }
                     }
                     pointX = 0;
@@ -130,16 +149,43 @@ public class FloatingView extends AppCompatImageView implements IFloatingView,Vi
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
+
                 if (draggable) {
-                    final float distanceX = event.getX() - pointX;
-                    final float distanceY = event.getY() - pointY;
-                    if (distanceX != 0 && distanceY != 0) {
+                    //手指相对于刚触摸到view时滑动的距离
+                    float distanceX= event.getX() - pointX;
+                    float distanceY = event.getY() - pointY;
+
+                    if (event.getRawX()-event.getX()<=0){
+                        //不允许再往左滑了
+                        if (distanceX<=0)
+                            distanceX=0;
+                    }
+                    if (event.getRawX()-event.getX()+width>=((ViewGroup)getParent()).getWidth()){
+                        //不允许再往右滑了
+                        if (distanceX>=0)
+                            distanceX=0;
+                    }
+
+                    if (event.getRawY()-event.getY()+height>=((ViewGroup)getParent()).getHeight()+statusBarHeight){
+                        //不允许再往下滑了
+                        if (distanceY>=0)
+                            distanceY=0;
+                    }
+
+                    if (event.getRawY()-event.getY()<=navigationBarHeight){
+                        //不允许再往上滑了
+                        if (distanceY<=0)
+                            distanceY=0;
+                    }
+
+                    if ( distanceY != 0) {
                         int l = (int) (getLeft() + distanceX);
                         int r = (int) (getRight() + distanceX);
                         int t = (int) (getTop() + distanceY);
                         int b = (int) (getBottom() + distanceY);
                         this.layout(l, t, r, b);
                     }
+
                 } else {
                     pointX = event.getX();
                     pointY = event.getY();
@@ -150,10 +196,13 @@ public class FloatingView extends AppCompatImageView implements IFloatingView,Vi
             case MotionEvent.ACTION_DOWN:
                 pointX = event.getX();
                 pointY = event.getY();
+                rawPointX= event.getRawX();
+                rawPointY=event.getRawY();
                 break;
             default:
                 break;
         }
+
         return true;
     }
 
